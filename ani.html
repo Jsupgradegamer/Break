@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Employee Scheduling</title>
+    <style>
+        /* BASE STYLES */
+        body {
+            display: flex;
+            flex-direction: column; /* बटन को टेक्स्ट के नीचे रखने के लिए */
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #0d1a26; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            color: #ffffff;
+        }
+
+        /* WELCOME TEXT CONTAINER */
+        .welcome-container {
+            text-align: center;
+            font-size: 2.5em;
+            font-weight: 300;
+            letter-spacing: 2px;
+            opacity: 0;
+            /* Animation: fadeIn (1s) -> typing (3s, delay 1s) -> showButton (0s, delay 4s) */
+            animation: 
+                fadeIn 1s forwards, 
+                typing 3s 1s steps(40, end),
+                blink-caret .75s step-end infinite; /* कर्सर को टाइपिंग के दौरान ब्लिंक कराएगा */
+            
+            white-space: nowrap;
+            overflow: hidden;
+            border-right: .15em solid #00bcd4; /* कर्सर इफ़ेक्ट का रंग */
+            width: 0; /* टाइपिंग से पहले 0 चौड़ाई */
+            padding-right: 5px; /* कर्सर के लिए थोड़ी जगह */
+            margin-bottom: 40px; /* बटन से दूरी */
+            animation-fill-mode: forwards; /* सुनिश्चित करता है कि अंतिम keyframe पर रुका रहे */
+        }
+
+        /* TL'S TEXT */
+        .tl-text {
+            color: #00bcd4; 
+            font-weight: 600;
+            display: block;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            letter-spacing: 4px;
+        }
+
+        /* LET'S GO BUTTON */
+        #go-button {
+            padding: 12px 30px;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #0d1a26;
+            background-color: #00bcd4; /* बटन का मुख्य रंग */
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            opacity: 0; /* शुरू में छिपा हुआ */
+            transform: translateY(20px);
+            transition: opacity 0.5s, transform 0.5s;
+            box-shadow: 0 4px 15px rgba(0, 188, 212, 0.4); /* हल्का शैडो इफ़ेक्ट */
+        }
+
+        #go-button:hover {
+            background-color: #00e5ff; /* होवर पर हल्का रंग */
+            box-shadow: 0 6px 20px rgba(0, 188, 212, 0.6);
+        }
+
+        /* ------------------ KEYFRAMES ------------------ */
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Typing Effect */
+        @keyframes typing {
+            from { width: 0 }
+            to { width: 42ch } /* 42 वर्णों की चौड़ाई */
+        }
+
+        /* Cursor Blinking */
+        @keyframes blink-caret {
+            from, to { border-color: transparent }
+            50% { border-color: #00bcd4; }
+        }
+
+        /* जब टाइपिंग खत्म हो जाए, तो कर्सर को हटाएँ */
+        @keyframes hide-caret {
+            to { border-color: transparent; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="welcome-container" id="welcome-message">
+        <span class="tl-text">WELCOME TL'S</span>
+        LET'S DO EMPLOYEE SCHEDULE
+    </div>
+    
+    <button id="go-button">LET'S GO</button>
+
+    <script>
+        const correctPassword = "Inspiren";
+        const redirectPage = "index1.html";
+        const welcomeContainer = document.getElementById('welcome-message');
+        const goButton = document.getElementById('go-button');
+        
+        // टाइपिंग एनिमेशन की कुल अवधि (1s fadeIn + 3s typing)
+        const animationEndTime = 4000; // 4 सेकंड (4000ms)
+
+        // 1. टाइपिंग खत्म होने के बाद बटन दिखाएँ और कर्सर हटाएँ
+        setTimeout(() => {
+            // कर्सर हटाओ
+            welcomeContainer.style.animation = 'fadeIn 1s forwards, typing 3s 1s steps(40, end) forwards, hide-caret 0.1s 4s forwards'; 
+            
+            // बटन दिखाओ (Fade In और स्लाइड अप)
+            goButton.style.opacity = 1;
+            goButton.style.transform = 'translateY(0)';
+            
+        }, animationEndTime); 
+
+        // 2. बटन क्लिक इवेंट हैंडलर
+        goButton.addEventListener('click', () => {
+            // JavaScript का built-in prompt बॉक्स उपयोग करें
+            const userPassword = prompt("Please enter the password to continue:");
+            
+            if (userPassword === correctPassword) {
+                // पासवर्ड सही होने पर
+                
+                // ट्रांज़िशन इफ़ेक्ट (पेज को गायब करना)
+                document.body.style.transition = 'opacity 1s, transform 1s';
+                document.body.style.opacity = 0;
+                document.body.style.transform = 'translateY(-20px)';
+
+                // ट्रांज़िशन खत्म होने के बाद redirect करें
+                setTimeout(() => {
+                    window.location.href = redirectPage;
+                }, 1000); // 1 सेकंड का इंतज़ार फेड आउट के लिए
+                
+            } else if (userPassword !== null) {
+                // अगर यूज़र ने Cancel नहीं किया और पासवर्ड गलत है
+                alert("Incorrect password. Please try again.");
+            }
+            // अगर userPassword null (Cancel) है, तो कुछ न करें
+        });
+    </script>
+</body>
+</html>
