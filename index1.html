@@ -419,14 +419,15 @@
             }
             
             // -------------------------------------------------------------------------------------
-            // --- Pre-fill Logic (Backup Boy 1 and 2 added for testing equal distribution) ---
+            // --- Pre-fill Logic (Adjusted based on user's last input for testing equal distribution) ---
             // -------------------------------------------------------------------------------------
+            // Setting 4 employees with 2 breaks each for a total of 8 breaks (240 mins coverage time)
             createEntryRow('alok.k', 'Alok Kumar', false, false, '01:00', '01:30', '05:30', '06:00'); 
-            createEntryRow('bishal.y', 'BISHAL YADAV', false, false, '01:00', '01:30', '05:30', '06:00'); // Changed BISHAL's break time to 01:00 for overlapping test
-            createEntryRow('ava.m', 'Avaneesh Mishra', true, false, '01:30', '02:00', '05:00', '05:30'); 
+            createEntryRow('bishal.y', 'BISHAL YADAV', false, false, '01:00', '01:30', '06:00', '06:30'); 
+            createEntryRow('ava.m', 'Avaneesh Mishra', true, false, '01:30', '02:00', '05:00', '05:30'); // COE
             createEntryRow('', 'Backup Boy 1', false, false, '', '', '', ''); // Backup Employee 1 (Only Name)
             createEntryRow('', 'Backup Girl 2', false, false, '', '', '', ''); // Backup Employee 2 (Only Name)
-            createEntryRow('ajay.s', 'Ajay Singh', false, true, '01:30', '02:00', '05:30', '06:00'); // Changed Ajay's break time for overlapping test
+            createEntryRow('ajay.s', 'Ajay Singh', false, true, '02:30', '03:00', '06:30', '07:00'); // BOE
             
             // Event listeners
             shiftStartInput.addEventListener('input', checkValidation);
@@ -545,7 +546,7 @@
                             // PRIORITY 1: Backup covers the break (Dynamic N*2 break limit)
                             if (breakSequenceCounter <= backupCapacity) { 
                                 
-                                // FIX APPLIED: Use a persistent counter for strict round-robin assignment
+                                // **THE FIX IS HERE: Strict Round Robin for ALL Breaks**
                                 const backupCycleIndex = totalBreaksAssignedToBackups % numBackups; // Cycles: 0, 1, 0, 1, 0, 1...
                                 giver1 = backupEmployees[backupCycleIndex]; 
                                 
@@ -554,7 +555,8 @@
                                 breakCoverageSchedule.push({
                                     giver: giver1.name, receiver: receiverName, startMin: breakTime.startMin, endMin: breakTime.endMin,
                                     isBOEBreak: breakSlot.isBOE, isCOEBreak: breakSlot.isCOE, isBackup: true,
-                                    note: `Backup Coverage (${breakSequenceCounter}th simultaneous break) - ${giver1.name} (Assigned Break ${totalBreaksAssignedToBackups})`,
+                                    // Note now shows the sequential break count to prove round-robin
+                                    note: `Backup Coverage (Break ${totalBreaksAssignedToBackups} of ${allBreaks.length}) - ${giver1.name}`,
                                     isOverloadCoverage: false
                                 });
                             } else {
@@ -793,7 +795,11 @@
                     } else if (role === 'Backup') {
                         // Backup's duty is just break coverage
                         const breakTimeGiven = backupDutyFinalTotal[name] || 0;
-                        summaryHTML += `<li>**${name}** (${role}): Break Coverage Given: **${breakTimeGiven}** minutes (**${(breakTimeGiven / 60).toFixed(2)}** hours)</li>`;
+                        // Highlight equal distribution status
+                        const totalBreakTime = allBreaks.length * 30; // Assuming 30 min breaks
+                        const expectedTime = Math.round(totalBreakTime / numBackups);
+                        const backupStatus = Math.abs(breakTimeGiven - expectedTime) < 1 ? '✅ Equal Share' : '❌ Unequal Share';
+                        summaryHTML += `<li>**${name}** (${role}): Break Coverage Given: **${breakTimeGiven}** minutes (**${(breakTimeGiven / 60).toFixed(2)}** hours) - *${backupStatus}*</li>`;
                     } else {
                         summaryHTML += `<li>**${name}** (${role}): ${Math.round(dutyTime)} minutes (${(dutyTime / 60).toFixed(2)} hours)</li>`;
                     }
