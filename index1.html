@@ -414,8 +414,10 @@
                 activeEmployees.forEach(emp => employeeDutyInitialTime[emp.name] = 0);
                 
                 const totalShiftExtraIDLoad = SHIFT_DURATION_MIN * numExtraIDs;
-                const requiredTotalExtraIDTime = totalShiftExtraIDLoad ;
-// + activeEmployeeBreakLoad; 
+                
+                // --- FIX 1: Corrected Total Required Time ---
+                const requiredTotalExtraIDTime = totalShiftExtraIDLoad; 
+                // BOE/COE load is covered *within* the totalShiftExtraIDLoad, not added on top.
                 
                 let requiredDutyPerEmployee = 0;
                 if (numActiveEmployees > 0) {
@@ -428,33 +430,35 @@
                 
                 if (numAllGivers > 0) {
                     
-                    // --- 3. Break Coverage Duty Assignment ---
+                    // --- 3. Break Coverage Duty Assignment (FIXED LOGIC) ---
                     let extraIDIndex = 0; 
+                    let activeBreakCoverageIndex = 0; // Index for cycling through Active Employees for BOE/COE breaks
                     
                     allBreaks.forEach((breakSlot) => {
                         const receiver = breakSlot.employee;
                         const breakTime = breakSlot.breakTime;
                         const duration = breakTime.endMin - breakTime.startMin;
-                        
-                        // 1. Find the Giver for break coverage (from all Givers)
-                        const receiverIndexInAllGivers = allGivers.findIndex(e => e.id === receiver.id);
-                        let giver1Index = (receiverIndexInAllGivers + 1) % numAllGivers;
-                        let giver1 = allGivers[giver1Index];
-                        
-                        // Add to break coverage schedule
-                        breakCoverageSchedule.push({
-                            giver: giver1.name,
-                            receiver: receiver.name,
-                            startMin: breakTime.startMin,
-                            endMin: breakTime.endMin,
-                            isBOEBreak: breakSlot.isBOE,
-                            isCOEBreak: breakSlot.isCOE
-                        });
-                        
+                        let giver1; // The employee who gives the break coverage
+
                         if (breakSlot.isBOE || breakSlot.isCOE) {
-                            // BOE/COE Break: Coverage Giver (giver1) takes on the Extra ID load if they are Active.
+                            // --- FIX 2: BOE/COE Break Logic: Giver must be an Active Employee (A1, A2, etc.) ---
+                            // This ensures BOE/COE break load is evenly distributed among Active Employees immediately.
                             
-                            if (activeEmployees.some(e => e.id === giver1.id)) {
+                            if (numActiveEmployees > 0) {
+                                giver1 = activeEmployees[activeBreakCoverageIndex % numActiveEmployees];
+                                activeBreakCoverageIndex++; // Move to the next Active Employee for the next BOE/COE break
+                            
+                                // Add to break coverage schedule
+                                breakCoverageSchedule.push({
+                                    giver: giver1.name,
+                                    receiver: receiver.name,
+                                    startMin: breakTime.startMin,
+                                    endMin: breakTime.endMin,
+                                    isBOEBreak: breakSlot.isBOE,
+                                    isCOEBreak: breakSlot.isCOE
+                                });
+                                
+                                // BOE/COE Break: The Active Giver takes on the Extra ID load for this period
                                 extraIDDutySchedule.push({
                                     giver: giver1.name,
                                     extraID: `BOE/COE Coverage (${receiver.name})`, 
@@ -462,11 +466,37 @@
                                     endMin: breakTime.endMin,
                                 });
                                 employeeDutyInitialTime[giver1.name] += duration;
-                            } 
-                            
-                        } else { 
-                            // Active Employee's Break: Requires two covers (Break Giver + Extra ID Giver)
+                            } else {
+                                // Fallback if no active employees (Should be caught by initial check but safety first)
+                                breakCoverageSchedule.push({
+                                    giver: 'UNCOVERED (No Active Givers)',
+                                    receiver: receiver.name,
+                                    startMin: breakTime.startMin,
+                                    endMin: breakTime.endMin,
+                                    isBOEBreak: breakSlot.isBOE,
+                                    isCOEBreak: breakSlot.isCOE
+                                });
+                            }
 
+                        } else { 
+                            // --- Active Employee's Break Logic: ---
+                            
+                            // 1. Find the Giver for physical break coverage (from all Givers: Active + COE)
+                            const receiverIndexInAllGivers = allGivers.findIndex(e => e.id === receiver.id);
+                            let giver1Index = (receiverIndexInAllGivers + 1) % numAllGivers;
+                            giver1 = allGivers[giver1Index];
+
+                            // Add to break coverage schedule (physical break coverage)
+                            breakCoverageSchedule.push({
+                                giver: giver1.name,
+                                receiver: receiver.name,
+                                startMin: breakTime.startMin,
+                                endMin: breakTime.endMin,
+                                isBOEBreak: false,
+                                isCOEBreak: false
+                            });
+
+                            // 2. Assign Extra ID to the next Active Employee in the Extra ID cycle (if Extra ID exists)
                             if (numExtraIDs > 0) {
                                 let activeGiverIndex = extraIDIndex % numActiveEmployees;
                                 let giver2 = activeEmployees[activeGiverIndex];
@@ -653,10 +683,18 @@
                 const requiredDutyPerEmployeeHours = requiredDutyPerEmployee / 60;
                 
                 let checkMessage = '';
-                if (numActiveEmployees > 0) {
+                
+                // Special check for no Extra ID scenario (Total time required is 0)
+                if (numExtraIDs === 0) {
+                     checkMessage = `<div class="success-message">✅ **Break Coverage Check (No Extra ID):** <ul>
+                            <li>Shift Duration: **${SHIFT_DURATION_MIN/60} hours**.</li>
+                            <li>Total Extra ID Duty Required: **0.00 hours**.</li>
+                            <li>Status: **SUCCESS!** सभी Employees (Active + COE) आपस में ब्रेक कवर कर रहे हैं। कोई Extra ID Duty नहीं है।</li>
+                        </ul></div>`;
+                } else if (numActiveEmployees > 0) {
                     if (Math.abs(requiredTotalExtraIDTime - totalExtraIDTime) < 1) { 
                          checkMessage = `<div class="success-message">✅ **Shift ID Completion Check (Active Employees):** <ul>
-                            <li>Shift Duration: **${SHIFT_DURATION_MIN/60} hours**. Total BOE + COE Break Load Added: **${(activeEmployeeBreakLoad)/60} hours** (${activeEmployeeBreakLoad} mins).</li>
+                            <li>Shift Duration: **${SHIFT_DURATION_MIN/60} hours**. Total BOE + COE Break Load: **${(activeEmployeeBreakLoad)/60} hours** (${activeEmployeeBreakLoad} mins).</li>
                             <li>Total Extra ID Duty Required: **${requiredTotalExtraIDTimeHours.toFixed(2)} hours** (${Math.round(requiredTotalExtraIDTime)} mins).</li>
                             <li>Total Extra ID Duty Scheduled: **${totalExtraIDTimeHours.toFixed(2)} hours** (${Math.round(totalExtraIDTime)} mins).</li>
                             <li>Status: **SUCCESS!** Extra ID load barabar baant diya gaya hai. Har **Active Employee** ko **${requiredDutyPerEmployeeHours.toFixed(2)} hours** (${Math.round(requiredDutyPerEmployee)} mins) ki duty mili hai.</li>
