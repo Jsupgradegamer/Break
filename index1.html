@@ -422,11 +422,11 @@
             // --- Pre-fill Logic (Backup Boy 1 and 2 added for testing equal distribution) ---
             // -------------------------------------------------------------------------------------
             createEntryRow('alok.k', 'Alok Kumar', false, false, '01:00', '01:30', '05:30', '06:00'); 
-            createEntryRow('bishal.y', 'BISHAL YADAV', false, false, '03:00', '03:30', '06:00', '06:30'); 
+            createEntryRow('bishal.y', 'BISHAL YADAV', false, false, '01:00', '01:30', '05:30', '06:00'); // Changed BISHAL's break time to 01:00 for overlapping test
             createEntryRow('ava.m', 'Avaneesh Mishra', true, false, '01:30', '02:00', '05:00', '05:30'); 
             createEntryRow('', 'Backup Boy 1', false, false, '', '', '', ''); // Backup Employee 1 (Only Name)
             createEntryRow('', 'Backup Girl 2', false, false, '', '', '', ''); // Backup Employee 2 (Only Name)
-            createEntryRow('ajay.s', 'Ajay Singh', false, true, '02:30', '03:00', '06:30', '07:00'); 
+            createEntryRow('ajay.s', 'Ajay Singh', false, true, '01:30', '02:00', '05:30', '06:00'); // Changed Ajay's break time for overlapping test
             
             // Event listeners
             shiftStartInput.addEventListener('input', checkValidation);
@@ -522,6 +522,8 @@
                     let lastBreakStartMin = null; 
                     
                     const backupCapacity = numBackups * 2; 
+                    // FIX: Persistent counter for strict round-robin assignment across all breaks
+                    let totalBreaksAssignedToBackups = 0; 
 
                     allBreaks.forEach((breakSlot) => {
                         const receiver = breakSlot.employee;
@@ -542,15 +544,17 @@
                         if (numBackups > 0) {
                             // PRIORITY 1: Backup covers the break (Dynamic N*2 break limit)
                             if (breakSequenceCounter <= backupCapacity) { 
-                                // NEW LOGIC: Equal distribution for backups: Cycle through backups every 2 breaks.
-                                // If 2 backups: Backup 1 covers (1st, 2nd), Backup 2 covers (3rd, 4th), Backup 1 covers (5th, 6th)
-                                const backupCycleIndex = Math.floor((breakSequenceCounter - 1) / 2) % numBackups; // Cycles through available backups
+                                
+                                // FIX APPLIED: Use a persistent counter for strict round-robin assignment
+                                const backupCycleIndex = totalBreaksAssignedToBackups % numBackups; // Cycles: 0, 1, 0, 1, 0, 1...
                                 giver1 = backupEmployees[backupCycleIndex]; 
+                                
+                                totalBreaksAssignedToBackups++; // Increment persistent counter
 
                                 breakCoverageSchedule.push({
                                     giver: giver1.name, receiver: receiverName, startMin: breakTime.startMin, endMin: breakTime.endMin,
                                     isBOEBreak: breakSlot.isBOE, isCOEBreak: breakSlot.isCOE, isBackup: true,
-                                    note: `Backup Coverage (${breakSequenceCounter}th simultaneous break) - ${giver1.name}`,
+                                    note: `Backup Coverage (${breakSequenceCounter}th simultaneous break) - ${giver1.name} (Assigned Break ${totalBreaksAssignedToBackups})`,
                                     isOverloadCoverage: false
                                 });
                             } else {
