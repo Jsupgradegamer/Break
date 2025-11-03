@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamic Split Break Coverage System - Pre-filled & Remove</title>
+    <title>Dynamic Split Break Coverage System - FINAL FIX</title>
     <style>
-        /* --- CSS Styling (Updated for Remove Button) --- */
+        /* --- CSS Styling (Same as previous version) --- */
         body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
         #entry-form-container, #results-container { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); margin-bottom: 25px; }
         h2, h3 { color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 5px; }
@@ -21,13 +21,14 @@
             border-left: 5px solid #ffc107; 
             border-radius: 6px; 
             align-items: center; 
-            position: relative; /* Needed for absolute positioning of remove button */
+            position: relative;
         }
         .input-group { display: flex; flex-direction: column; min-width: 120px; }
         .input-group label { font-weight: bold; color: #555; margin-bottom: 4px; font-size: 0.9em; }
         .input-group input[type="text"], .input-group input[type="time"] { padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; width: 100%; }
         .time-pair { display: flex; gap: 5px; }
-        .checkbox-group { display: flex; align-items: center; gap: 5px; min-width: 150px; margin-top: 10px; }
+        .checkbox-group { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 0.9em;}
+        .checkbox-container { display: flex; flex-direction: column; min-width: 150px; margin-top: 10px; padding-right: 15px; border-right: 1px dotted #ccc; } 
         .checkbox-group input[type="checkbox"] { width: auto; }
         .controls { margin-top: 20px; display: flex; gap: 10px; }
         .controls button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background-color 0.3s, opacity 0.3s; }
@@ -40,6 +41,7 @@
         #extra-id-list li { background: #fff3e0; margin-bottom: 8px; padding: 12px; border-left: 5px solid #ff9800; border-radius: 4px; font-size: 1.05em; }
         .warning-message { color: #dc3545; font-weight: bold; padding: 10px 0; border-top: 1px dashed #dc3545; margin-top: 10px; }
         .success-message { color: #28a745; font-weight: bold; padding: 10px 0; border-top: 1px dashed #28a745; margin-top: 10px; }
+        .alert-message { background-color: #fff3cd; color: #856404; font-weight: bold; padding: 10px; border: 1px solid #ffeeba; border-radius: 5px; margin-top: 10px; }
         .remove-btn {
             position: absolute;
             top: -10px;
@@ -70,7 +72,7 @@
 
     <div id="entry-form-container">
         <h2>Employee & ID Entry 🧑‍💻</h2>
-        <p><strong>Logic:</strong> BOE (Break Only Employee) takes breaks but does NOT cover anyone else's ID or the Extra ID duty rotation. Their break coverage duty is added to the total Extra ID duty for Active Employees to split equally.</p>
+        <p><strong>Logic:</strong> Breaks are automatically adjusted sequentially to prevent uncovered IDs. **Active Employees** handle the main Extra ID load. **COE** employees only cover breaks. **BOE** employees only take breaks.</p>
 
         <div class="shift-time-inputs">
             <div class="input-group">
@@ -82,6 +84,9 @@
                 <input type="time" id="shift-end" value="07:30" required>
             </div>
         </div>
+        
+        <div id="overlap-warning-container">
+            </div>
 
         <div id="entries-container">
             </div>
@@ -121,6 +126,8 @@
             const dutySummary = document.getElementById('duty-summary');
             const shiftStartInput = document.getElementById('shift-start');
             const shiftEndInput = document.getElementById('shift-end');
+            const overlapWarningContainer = document.getElementById('overlap-warning-container'); 
+
             
             let entryCount = 0;
 
@@ -146,16 +153,16 @@
                 return (endMin > startMin) ? (endMin - startMin) : (endMin + (24 * 60) - startMin);
             }
             
-            // --- NEW: Remove Function ---
+            // --- Remove Function ---
             window.removeEntry = function(button) {
                 const row = button.closest('.entry-row');
                 if (row) {
                     row.remove();
-                    checkValidation(); // Re-validate after removing a row
+                    checkValidation(); 
                 }
             };
 
-            function createEntryRow(idValue = '', nameValue = '', isBOEChecked = false, break1Start = '', break1End = '', break2Start = '', break2End = '') {
+            function createEntryRow(idValue = '', nameValue = '', isCOEChecked = false, isBOEChecked = false, break1Start = '', break1End = '', break2Start = '', break2End = '') {
                 entryCount++;
                 const row = document.createElement('div');
                 row.className = 'entry-row';
@@ -166,12 +173,20 @@
                     <div class="input-group" style="flex-grow: 0.5;">
                         <label>ID (Compulsory):</label>
                         <input type="text" class="employee-id" placeholder="ID" value="${idValue}" required>
+                    </div>
+                    
+                    <div class="checkbox-container">
+                        <label style="font-size: 1em; margin-bottom: 5px;">Employee Type:</label>
+                        <div class="checkbox-group">
+                            <input type="checkbox" class="is-coe-checkbox" id="coe-${entryCount}" ${isCOEChecked ? 'checked' : ''}>
+                            <label for="coe-${entryCount}">Coverage Only (COE)</label>
+                        </div>
                         <div class="checkbox-group">
                             <input type="checkbox" class="is-boe-checkbox" id="boe-${entryCount}" ${isBOEChecked ? 'checked' : ''}>
                             <label for="boe-${entryCount}">Break Only (BOE)</label>
                         </div>
                     </div>
-
+                    
                     <div class="input-group" style="flex-grow: 1.5;">
                         <label>Name (Optional):</label>
                         <input type="text" class="employee-name" placeholder="Name" value="${nameValue}">
@@ -195,9 +210,109 @@
                 `;
                 entriesContainer.appendChild(row);
                 
-                row.querySelector('.employee-id').addEventListener('input', checkValidation);
-                row.querySelector('.is-boe-checkbox').addEventListener('change', checkValidation);
+                const inputs = row.querySelectorAll('input');
+                inputs.forEach(input => input.addEventListener('input', checkValidation));
+                
+                // Add listeners to checkboxes to manage mutual exclusion (BOE overrides COE/Active)
+                const coeCheckbox = row.querySelector('.is-coe-checkbox');
+                const boeCheckbox = row.querySelector('.is-boe-checkbox');
+
+                coeCheckbox.addEventListener('change', () => {
+                    if (coeCheckbox.checked) {
+                        boeCheckbox.checked = false; 
+                    }
+                    checkValidation();
+                });
+                boeCheckbox.addEventListener('change', () => {
+                    if (boeCheckbox.checked) {
+                        coeCheckbox.checked = false; 
+                    }
+                    checkValidation();
+                });
             }
+
+            // --- CORE LOGIC START ---
+
+            function getBreaksData() {
+                const shiftStartInputVal = shiftStartInput.value.trim();
+                const shiftStartMin = timeToMinutes(shiftStartInputVal);
+                if (!shiftStartMin) return { allBreaks: [], activeEmployees: [], coeEmployees: [], boeEmployees: [], extraIDs: [] };
+
+                const activeEmployees = []; 
+                const coeEmployees = [];      
+                const boeEmployees = [];      
+                const extraIDs = []; 
+                
+                document.querySelectorAll('.entry-row').forEach(row => {
+                    const id = row.querySelector('.employee-id').value.trim();
+                    const name = row.querySelector('.employee-name').value.trim();
+                    const isCOE = row.querySelector('.is-coe-checkbox').checked;
+                    const isBOE = row.querySelector('.is-boe-checkbox').checked;
+
+                    const breaks = [
+                        { start: row.querySelector('.break-start-1').value, end: row.querySelector('.break-end-1').value },
+                        { start: row.querySelector('.break-start-2').value, end: row.querySelector('.break-end-2').value }
+                    ].filter(b => b.start && b.end).map(b => {
+                        let startMin = timeToMinutes(b.start);
+                        let endMin = timeToMinutes(b.end);
+                        if (startMin < shiftStartMin && timeToMinutes(b.start) < timeToMinutes(shiftStartInputVal)) startMin += (24 * 60);
+                        if (endMin < startMin) endMin += (24 * 60);
+                        b.duration = endMin - startMin; 
+                        return { ...b, startMin, endMin, originalStartMin: startMin };
+                    });
+
+                    if (id && !name && breaks.length === 0 && !isCOE && !isBOE) {
+                        extraIDs.push({ id, name: `EXTRA ID (${id})` });
+                    } else if (id && isBOE) {
+                        boeEmployees.push({ id, name: name || `ID: ${id}`, breaks });
+                    } else if (id && isCOE) {
+                        coeEmployees.push({ id, name: name || `ID: ${id}`, breaks });
+                    } else if (id) {
+                        activeEmployees.push({ id, name: name || `ID: ${id}`, breaks });
+                    }
+                });
+
+                let allBreaks = [];
+                activeEmployees.forEach(emp => emp.breaks.forEach((b) => { allBreaks.push({ employee: emp, breakTime: b, isBOE: false, isCOE: false }); }));
+                coeEmployees.forEach(emp => emp.breaks.forEach((b) => { allBreaks.push({ employee: emp, breakTime: b, isBOE: false, isCOE: true }); })); 
+                boeEmployees.forEach(emp => emp.breaks.forEach((b) => { allBreaks.push({ employee: emp, breakTime: b, isBOE: true, isCOE: false }); })); 
+                
+                allBreaks.sort((a, b) => a.breakTime.startMin - b.breakTime.startMin);
+                
+                return { allBreaks, activeEmployees, coeEmployees, boeEmployees, extraIDs };
+            }
+
+
+            // --- Break Adjustment Logic (Same as before) ---
+            function adjustBreaksSequentially(allBreaks) {
+                overlapWarningContainer.innerHTML = '';
+                let adjustedListHTML = '';
+                let lastEndTime = null;
+
+                allBreaks.forEach(breakSlot => {
+                    let currentBreak = breakSlot.breakTime;
+                    
+                    if (lastEndTime !== null && currentBreak.startMin < lastEndTime) {
+                        const originalStart = minutesToTime(currentBreak.originalStartMin);
+                        const newStartMin = lastEndTime;
+                        const newEndMin = newStartMin + currentBreak.duration;
+                        const newStart = minutesToTime(newStartMin);
+                        const newEnd = minutesToTime(newEndMin);
+
+                        currentBreak.startMin = newStartMin;
+                        currentBreak.endMin = newEndMin;
+                        
+                        adjustedListHTML += `<li>🚨 **ADJUSTED:** **${breakSlot.employee.name}**'s break (**${originalStart} - ${minutesToTime(currentBreak.originalStartMin + currentBreak.duration)}**) was overlapping and moved to **${newStart} - ${newEnd}**.</li>`;
+                    }
+                    
+                    lastEndTime = currentBreak.endMin;
+                });
+
+                if (adjustedListHTML) {
+                    overlapWarningContainer.innerHTML = `<div class="alert-message">⚠️ **BREAK ADJUSTMENT ALERT:**<ul>${adjustedListHTML}</ul><p>The calculation will proceed with the **adjusted times** to ensure ID coverage.</p></div>`;
+                }
+            }
+
 
             function checkValidation() {
                 const allEntries = document.querySelectorAll('.entry-row');
@@ -220,31 +335,35 @@
                 } else {
                     submitBtn.disabled = true;
                 }
+                
+                if (submitBtn.disabled === false) {
+                     const { allBreaks } = getBreaksData();
+                     adjustBreaksSequentially(allBreaks); 
+                } else {
+                     overlapWarningContainer.innerHTML = ''; 
+                }
             }
-
-            // --- Pre-fill Logic ---
-            // Active Employees (3)
-            createEntryRow('alok.k', 'Alok Kumar', false, '01:00', '01:30', '', '');
-            createEntryRow('ava.m', 'Avaneesh Mishra', false, '01:30', '02:00', '', '');
-            createEntryRow('bishal.y', 'BISHAL YADAV', false, '03:00', '03:30', '', '');
             
-            // Extra ID (1)
-            createEntryRow('ashok.y', '', false, '', '', '', '');
-
-            // BOE (Break Only Employee) Example (1)
-            createEntryRow('ajay.s', 'Ajay Singh', true, '05:00', '05:30', '06:00', '06:30');
+            // -------------------------------------------------------------------------------------
+            // --- Pre-fill Logic with the requested 2-break data ---
+            // -------------------------------------------------------------------------------------
+            createEntryRow('alok.k', 'Alok Kumar', false, false, '01:00', '01:30', '05:30', '06:00'); 
+            createEntryRow('bishal.y', 'BISHAL YADAV', false, false, '03:00', '03:30', '06:00', '06:30'); 
+            createEntryRow('ava.m', 'Avaneesh Mishra', true, false, '01:30', '02:00', '05:00', '05:30'); 
+            createEntryRow('ashok.y', '', false, false, '', '', '', '');
+            createEntryRow('ajay.s', 'Ajay Singh', false, true, '02:30', '03:00', '06:30', '07:00'); 
             
             // Event listeners
             shiftStartInput.addEventListener('input', checkValidation);
             shiftEndInput.addEventListener('input', checkValidation);
             
             addMoreBtn.addEventListener('click', () => {
-                createEntryRow(); // Adds a blank entry row
+                createEntryRow(); 
                 checkValidation();
             });
             checkValidation();
-
-            // --- CORE LOGIC (Copied from previous correct response) ---
+            
+            // --- CORE CALCULATION LOGIC (FINAL FIX APPLIED) ---
             submitBtn.addEventListener('click', () => {
                 checkValidation();
                 if (submitBtn.disabled) return; 
@@ -265,124 +384,93 @@
                 if (SHIFT_END_MIN < SHIFT_START_MIN) {
                     SHIFT_END_MIN += (24 * 60);
                 }
-
-                // --- 1. Gather Data ---
-                const allEntries = document.querySelectorAll('.entry-row');
-                const activeEmployees = []; 
-                const boeEmployees = [];      
-                const extraIDs = []; 
-                let totalBOEBreakTime = 0; 
                 
-                allEntries.forEach(row => {
-                    const id = row.querySelector('.employee-id').value.trim();
-                    const name = row.querySelector('.employee-name').value.trim();
-                    const isBOE = row.querySelector('.is-boe-checkbox').checked;
+                const { allBreaks, activeEmployees, coeEmployees, boeEmployees, extraIDs } = getBreaksData();
+                adjustBreaksSequentially(allBreaks); 
 
-                    const breaks = [
-                        { start: row.querySelector('.break-start-1').value, end: row.querySelector('.break-end-1').value },
-                        { start: row.querySelector('.break-start-2').value, end: row.querySelector('.break-end-2').value }
-                    ].filter(b => b.start && b.end).map(b => {
-                        let startMin = timeToMinutes(b.start);
-                        let endMin = timeToMinutes(b.end);
-                        if (startMin < SHIFT_START_MIN) startMin += (24 * 60);
-                        if (endMin < startMin) endMin += (24 * 60);
-                        return { ...b, startMin, endMin };
-                    });
-
-                    if (id && !name && breaks.length === 0 && !isBOE) {
-                        extraIDs.push({ id, name: `EXTRA ID (${id})` });
-                    } else if (id && isBOE) {
-                        boeEmployees.push({ id, name: name || `ID: ${id}`, breaks });
-                        breaks.forEach(b => { totalBOEBreakTime += (b.endMin - b.startMin); }); 
-                    } else if (id) {
-                        activeEmployees.push({ id, name: name || `ID: ${id}`, breaks });
+                // Recalculate break load based on potentially adjusted times
+                let activeEmployeeBreakLoad = 0;
+                
+                allBreaks.forEach(slot => {
+                    const duration = slot.breakTime.endMin - slot.breakTime.startMin;
+                    if (slot.isBOE || slot.isCOE) {
+                        activeEmployeeBreakLoad += duration;
                     }
                 });
 
-                if (activeEmployees.length === 0 && extraIDs.length > 0) {
-                     resultMessage.textContent = "Error: Active Employees are needed to cover Extra IDs.";
-                    return;
-                }
                 
                 const numActiveEmployees = activeEmployees.length;
                 const numExtraIDs = extraIDs.length;
+                
+                if (numActiveEmployees === 0 && numExtraIDs > 0) {
+                     resultMessage.innerHTML = '<div class="warning-message">⚠️ **ERROR:** Extra ID Duty ke liye koi Active Employee nahi hai. Extra ID cover nahi ho sakti.</div>';
+                    return;
+                }
+                
                 const breakCoverageSchedule = []; 
                 let extraIDDutySchedule = [];   
                 
-                const employeeExtraIDTime = {}; 
-                activeEmployees.forEach(emp => employeeExtraIDTime[emp.name] = 0);
+                const employeeDutyInitialTime = {}; // Time accumulated during scheduled breaks/coverage
+                activeEmployees.forEach(emp => employeeDutyInitialTime[emp.name] = 0);
                 
-                const requiredTotalExtraIDTime = (SHIFT_DURATION_MIN * numExtraIDs) + totalBOEBreakTime;
+                const totalShiftExtraIDLoad = SHIFT_DURATION_MIN * numExtraIDs;
+                const requiredTotalExtraIDTime = totalShiftExtraIDLoad ;
+// + activeEmployeeBreakLoad; 
+                
                 let requiredDutyPerEmployee = 0;
                 if (numActiveEmployees > 0) {
                     requiredDutyPerEmployee = requiredTotalExtraIDTime / numActiveEmployees; 
                 }
                 
-                if (numActiveEmployees > 0) {
+                const allGivers = [...activeEmployees, ...coeEmployees];
+                const numAllGivers = allGivers.length;
+                
+                
+                if (numAllGivers > 0) {
                     
                     // --- 3. Break Coverage Duty Assignment ---
                     let extraIDIndex = 0; 
                     
-                    let allBreaks = [];
-                    activeEmployees.forEach(emp => emp.breaks.forEach((b) => { allBreaks.push({ employee: emp, breakTime: b, isBOE: false }); }));
-                    boeEmployees.forEach(emp => emp.breaks.forEach((b) => { allBreaks.push({ employee: emp, breakTime: b, isBOE: true }); }));
-                    allBreaks.sort((a, b) => a.breakTime.startMin - b.breakTime.startMin);
-
                     allBreaks.forEach((breakSlot) => {
                         const receiver = breakSlot.employee;
                         const breakTime = breakSlot.breakTime;
                         const duration = breakTime.endMin - breakTime.startMin;
                         
-                        let giver1, giver2;
+                        // 1. Find the Giver for break coverage (from all Givers)
+                        const receiverIndexInAllGivers = allGivers.findIndex(e => e.id === receiver.id);
+                        let giver1Index = (receiverIndexInAllGivers + 1) % numAllGivers;
+                        let giver1 = allGivers[giver1Index];
                         
-                        if (breakSlot.isBOE) {
-                            if (numActiveEmployees > 0) {
-                                const activeGiverIndex = extraIDIndex % numActiveEmployees; 
-                                giver1 = activeEmployees[activeGiverIndex];
-                            } else {
-                                return; 
-                            }
+                        // Add to break coverage schedule
+                        breakCoverageSchedule.push({
+                            giver: giver1.name,
+                            receiver: receiver.name,
+                            startMin: breakTime.startMin,
+                            endMin: breakTime.endMin,
+                            isBOEBreak: breakSlot.isBOE,
+                            isCOEBreak: breakSlot.isCOE
+                        });
+                        
+                        if (breakSlot.isBOE || breakSlot.isCOE) {
+                            // BOE/COE Break: Coverage Giver (giver1) takes on the Extra ID load if they are Active.
                             
-                            breakCoverageSchedule.push({
-                                giver: giver1.name,
-                                receiver: receiver.name,
-                                startMin: breakTime.startMin,
-                                endMin: breakTime.endMin,
-                                isBOEBreak: true
-                            });
-
-                            extraIDDutySchedule.push({
-                                giver: giver1.name,
-                                extraID: receiver.name, 
-                                startMin: breakTime.startMin,
-                                endMin: breakTime.endMin,
-                            });
-                            
-                            employeeExtraIDTime[giver1.name] += duration;
-                            extraIDIndex = (extraIDIndex + 1); 
+                            if (activeEmployees.some(e => e.id === giver1.id)) {
+                                extraIDDutySchedule.push({
+                                    giver: giver1.name,
+                                    extraID: `BOE/COE Coverage (${receiver.name})`, 
+                                    startMin: breakTime.startMin,
+                                    endMin: breakTime.endMin,
+                                });
+                                employeeDutyInitialTime[giver1.name] += duration;
+                            } 
                             
                         } else { 
-                            const receiverIndex = activeEmployees.findIndex(e => e.id === receiver.id);
-                            
-                            const giver1Index = (receiverIndex + 1) % numActiveEmployees;
-                            giver1 = activeEmployees[giver1Index];
-                            
-                            let giver2Index = (giver1Index + 1) % numActiveEmployees;
-                            giver2 = activeEmployees[giver2Index];
-                            if (giver2.id === receiver.id) {
-                                 giver2Index = (giver2Index + 1) % numActiveEmployees;
-                                 giver2 = activeEmployees[giver2Index];
-                            }
-
-                            breakCoverageSchedule.push({
-                                giver: giver1.name,
-                                receiver: receiver.name,
-                                startMin: breakTime.startMin,
-                                endMin: breakTime.endMin,
-                                isBOEBreak: false
-                            });
+                            // Active Employee's Break: Requires two covers (Break Giver + Extra ID Giver)
 
                             if (numExtraIDs > 0) {
+                                let activeGiverIndex = extraIDIndex % numActiveEmployees;
+                                let giver2 = activeEmployees[activeGiverIndex];
+
                                 const extraIDSlot = extraIDs[extraIDIndex % numExtraIDs];
                                 extraIDDutySchedule.push({
                                     giver: giver2.name,
@@ -391,77 +479,98 @@
                                     endMin: breakTime.endMin,
                                 });
                                 
-                                employeeExtraIDTime[giver2.name] += duration;
+                                employeeDutyInitialTime[giver2.name] += duration;
                                 extraIDIndex = (extraIDIndex + 1); 
                             }
                         }
                     });
                 
                     
-                    // --- 4. Gap Filling Logic ---
+                    // --- 4. Gap Filling Logic (THE FINAL FIX) ---
                     
-                    const occupiedSegments = allBreaks.map(slot => ({ 
-                        start: slot.breakTime.startMin, 
-                        end: slot.breakTime.endMin 
+                    // 1. Compile all occupied time segments from break scheduling
+                    const occupiedSegments = extraIDDutySchedule.map(slot => ({ 
+                        start: slot.startMin, 
+                        end: slot.endMin 
                     }));
+                    
+                    // Add shift boundaries for gap detection
+                    occupiedSegments.unshift({ start: SHIFT_START_MIN, end: SHIFT_START_MIN });
                     occupiedSegments.push({ start: SHIFT_END_MIN, end: SHIFT_END_MIN }); 
                     occupiedSegments.sort((a, b) => a.start - b.start);
                     
-                    let lastTime = SHIFT_START_MIN;
-                    const gapDuties = [];
+                    const activeEmployeeCycle = activeEmployees.map(e => e.name);
+                    let cycleIndex = 0; 
                     
-                    occupiedSegments.forEach(segment => {
-                        if (segment.start > lastTime) {
-                            gapDuties.push({ start: lastTime, end: segment.start });
-                        }
-                        lastTime = Math.max(lastTime, segment.end);
-                    });
+                    const dutyTracking = {};
+                    activeEmployees.forEach(emp => dutyTracking[emp.name] = employeeDutyInitialTime[emp.name]);
                     
-                    let currentGiverIndex = 0; 
+                    // 2. Iterate through gaps between occupied segments
+                    for (let i = 0; i < occupiedSegments.length - 1; i++) {
+                        let gapStart = occupiedSegments[i].end;
+                        let gapEnd = occupiedSegments[i + 1].start;
 
-                    gapDuties.forEach(gap => {
-                        let gapStart = gap.start;
-                        let gapEnd = gap.end;
-                        
-                        while (gapStart < gapEnd) {
-                            const giver = activeEmployees[currentGiverIndex];
-                            const extraIDSlot = (numExtraIDs > 0) ? extraIDs[extraIDIndex % numExtraIDs] : null; 
+                        if (gapEnd > gapStart) {
+                            let currentGapTime = gapEnd - gapStart;
+                            let currentDutyStart = gapStart;
                             
-                            if (!extraIDSlot) { 
-                                gapStart = gapEnd; 
-                                continue;
-                            }
-                            
-                            const remainingDutyForGiver = requiredDutyPerEmployee - employeeExtraIDTime[giver.name];
-                            
-                            if (remainingDutyForGiver < 1) { 
-                                currentGiverIndex = (currentGiverIndex + 1) % numActiveEmployees;
-                                continue; 
-                            }
-                            
-                            const timeToAssign = Math.min(gapEnd - gapStart, remainingDutyForGiver);
-                            
-                            if (timeToAssign > 0) {
-                                let dutyEnd = gapStart + timeToAssign;
+                            while (currentGapTime > 0) {
                                 
-                                extraIDDutySchedule.push({
-                                    giver: giver.name,
-                                    extraID: extraIDSlot.name,
-                                    startMin: gapStart,
-                                    endMin: dutyEnd,
-                                    dutyType: 'Gap Filling'
-                                });
-                                
-                                gapStart = dutyEnd;
-                                employeeExtraIDTime[giver.name] += timeToAssign;
-                                extraIDIndex = (extraIDIndex + 1); 
-                            }
+                                // Find the next Active Employee whose quota isn't full
+                                let giverName = null;
+                                let remainingDutyForGiver = 0;
+                                let attempts = 0;
+                                const maxAttempts = activeEmployeeCycle.length;
 
-                            if (Math.abs(remainingDutyForGiver - timeToAssign) < 1) {
-                                currentGiverIndex = (currentGiverIndex + 1) % numActiveEmployees;
+                                while (attempts < maxAttempts) {
+                                    const potentialGiverName = activeEmployeeCycle[cycleIndex % numActiveEmployees];
+                                    const giverTotalDuty = dutyTracking[potentialGiverName] || 0;
+                                    remainingDutyForGiver = requiredDutyPerEmployee - giverTotalDuty;
+                                    
+                                    if (remainingDutyForGiver > 0.1) { // Check with tolerance
+                                        giverName = potentialGiverName;
+                                        break;
+                                    }
+                                    cycleIndex++; // Skip the filled employee
+                                    attempts++;
+                                }
+                                
+                                if (!giverName) {
+                                    // All employees have met their required duty time (within tolerance)
+                                    break; 
+                                }
+                                
+                                // 3. Assign duty chunk
+                                const timeToAssign = Math.min(currentGapTime, remainingDutyForGiver);
+                                
+                                if (timeToAssign > 0.1) {
+                                    let dutyEnd = currentDutyStart + timeToAssign;
+                                    
+                                    const extraIDName = (numExtraIDs > 0) ? extraIDs[extraIDIndex % numExtraIDs].name : 'No Extra ID';
+
+                                    extraIDDutySchedule.push({
+                                        giver: giverName,
+                                        extraID: extraIDName, 
+                                        startMin: currentDutyStart,
+                                        endMin: dutyEnd,
+                                        dutyType: 'Gap Filling'
+                                    });
+                                    
+                                    currentDutyStart = dutyEnd;
+                                    currentGapTime -= timeToAssign;
+                                    dutyTracking[giverName] += timeToAssign;
+                                    
+                                    // If quota is met (within tolerance), move to next employee
+                                    if (Math.abs(requiredDutyPerEmployee - dutyTracking[giverName]) < 0.1) {
+                                        cycleIndex++; 
+                                    }
+                                } else {
+                                    // Cannot assign time (maybe small remaining gap time or quota already met)
+                                    break;
+                                }
                             }
                         }
-                    });
+                    }
                 }
 
 
@@ -472,7 +581,14 @@
                     const formattedStart = minutesToTime(item.startMin);
                     const formattedEnd = minutesToTime(item.endMin);
                     const dutyLabel = item.receiver;
-                    let verb = item.isBOEBreak ? `will cover BOE's ID (**${dutyLabel}**)` : `will cover **${dutyLabel}'s** break`;
+                    let verb;
+                    if (item.isBOEBreak) {
+                        verb = `will cover **BOE's break** (${dutyLabel})`;
+                    } else if (item.isCOEBreak) {
+                        verb = `will cover **COE's break** (${dutyLabel})`;
+                    } else {
+                        verb = `will cover **${dutyLabel}'s break**`;
+                    }
                     return `**${item.giver}** ${verb} from **${formattedStart} - ${formattedEnd}** (${duration} mins)`;
                 }
                 
@@ -480,7 +596,9 @@
                     const duration = Math.round(item.endMin - item.startMin);
                     const formattedStart = minutesToTime(item.startMin);
                     const formattedEnd = minutesToTime(item.endMin);
-                    return `**${item.giver}** will run **${item.extraID}** from **${formattedStart} - ${formattedEnd}** (${duration} mins)`;
+                    let dutyType = item.extraID.startsWith('BOE/COE') ? 'Break Coverage' : 'Extra ID Run';
+                    if (item.dutyType === 'Gap Filling') dutyType = 'Gap Filling (Extra ID Run)';
+                    return `**${item.giver}** will run **${item.extraID}** (${dutyType}) from **${formattedStart} - ${formattedEnd}** (${duration} mins)`;
                 }
 
 
@@ -495,13 +613,19 @@
                 let totalExtraIDTime = 0;
                 extraIDDutySchedule.sort((a, b) => a.startMin - b.startMin); 
                 
-                const employeeDutyTotal = {}; 
-                activeEmployees.forEach(emp => employeeDutyTotal[emp.name] = 0);
+                const employeeDutyFinalTotal = {}; 
+                activeEmployees.forEach(emp => employeeDutyFinalTotal[emp.name] = 0);
+                coeEmployees.forEach(emp => employeeDutyFinalTotal[emp.name] = 0); 
+                boeEmployees.forEach(emp => employeeDutyFinalTotal[emp.name] = 0); 
 
+                
+                // Recalculate final totals based on the complete schedule
                 extraIDDutySchedule.forEach(item => {
                     const duration = item.endMin - item.startMin;
                     totalExtraIDTime += duration;
-                    employeeDutyTotal[item.giver] += duration;
+                    if (activeEmployees.some(e => e.name === item.giver)) {
+                        employeeDutyFinalTotal[item.giver] += duration; 
+                    }
                     
                     const li = document.createElement('li');
                     li.innerHTML = formatExtraIDItem(item);
@@ -512,12 +636,13 @@
 
 
                 let summaryHTML = '<ul>';
-                for (const name in employeeDutyTotal) {
-                    summaryHTML += `<li>**${name}** (Active): ${Math.round(employeeDutyTotal[name])} minutes (${(employeeDutyTotal[name] / 60).toFixed(2)} hours)</li>`;
+                for (const name in employeeDutyFinalTotal) {
+                    const role = activeEmployees.some(e => e.name === name) ? 'Active' : (coeEmployees.some(e => e.name === name) ? 'COE' : 'BOE');
+                    
+                    let dutyTime = employeeDutyFinalTotal[name];
+                    
+                    summaryHTML += `<li>**${name}** (${role}): ${Math.round(dutyTime)} minutes (${(dutyTime / 60).toFixed(2)} hours)</li>`;
                 }
-                boeEmployees.forEach(emp => {
-                    summaryHTML += `<li>**${emp.name}** (BOE): 0 minutes (Did not cover any duty)</li>`;
-                });
                 summaryHTML += '</ul>';
                 dutySummary.innerHTML = summaryHTML;
 
@@ -530,18 +655,18 @@
                 let checkMessage = '';
                 if (numActiveEmployees > 0) {
                     if (Math.abs(requiredTotalExtraIDTime - totalExtraIDTime) < 1) { 
-                         checkMessage = `<div class="success-message">✅ **Shift ID Completion Check:** <ul>
-                            <li>Shift Duration: **${SHIFT_DURATION_MIN/60} hours**. Total BOE Break Time Added: **${totalBOEBreakTime/60} hours**.</li>
-                            <li>Total Extra ID Duty Required: **${requiredTotalExtraIDTimeHours.toFixed(2)} hours**.</li>
-                            <li>Total Extra ID Duty Scheduled: **${totalExtraIDTimeHours.toFixed(2)} hours**.</li>
-                            <li>Status: **SUCCESS!** Extra ID load (${requiredTotalExtraIDTimeHours.toFixed(2)} hrs) barabar baant diya gaya hai. Har Active Employee ko **${requiredDutyPerEmployeeHours.toFixed(2)} hours** ki duty mili hai.</li>
+                         checkMessage = `<div class="success-message">✅ **Shift ID Completion Check (Active Employees):** <ul>
+                            <li>Shift Duration: **${SHIFT_DURATION_MIN/60} hours**. Total BOE + COE Break Load Added: **${(activeEmployeeBreakLoad)/60} hours** (${activeEmployeeBreakLoad} mins).</li>
+                            <li>Total Extra ID Duty Required: **${requiredTotalExtraIDTimeHours.toFixed(2)} hours** (${Math.round(requiredTotalExtraIDTime)} mins).</li>
+                            <li>Total Extra ID Duty Scheduled: **${totalExtraIDTimeHours.toFixed(2)} hours** (${Math.round(totalExtraIDTime)} mins).</li>
+                            <li>Status: **SUCCESS!** Extra ID load barabar baant diya gaya hai. Har **Active Employee** ko **${requiredDutyPerEmployeeHours.toFixed(2)} hours** (${Math.round(requiredDutyPerEmployee)} mins) ki duty mili hai.</li>
                         </ul></div>`;
                     } else {
                         const remainingTime = (requiredTotalExtraIDTime - totalExtraIDTime) / 60;
-                        checkMessage = `<div class="warning-message">⚠️ **SHIFT ID COMPLETION FAILED:** Extra ID load (BOE break time included) poora cover nahi hua. **${remainingTime.toFixed(2)} hours** baaki hai.</div>`;
+                        checkMessage = `<div class="warning-message">⚠️ **SHIFT ID COMPLETION FAILED:** Extra ID load (BOE + COE break time included) poora cover nahi hua. **${remainingTime.toFixed(2)} hours** baaki hai.</div>`;
                     }
                 } else {
-                    checkMessage = `<div class="warning-message">⚠️ **SYSTEM ERROR:** No Active Employees to handle the duty load.</div>`;
+                    checkMessage = `<div class="warning-message">⚠️ **SYSTEM ERROR:** No Active Employees to handle the Extra ID duty load.</div>`;
                 }
                 
                 resultMessage.innerHTML += checkMessage;
